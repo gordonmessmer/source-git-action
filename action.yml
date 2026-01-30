@@ -1,0 +1,67 @@
+name: 'Mock SCM Build'
+description: 'Build RPM packages using Mock with SCM integration'
+author: 'Gordon Messmer'
+
+branding:
+  icon: 'package'
+  color: 'blue'
+
+inputs:
+  mock-root:
+    description: 'Mock build root (e.g., fedora-44-x86_64, almalinux-10-x86_64, centos-stream-10-x86_64)'
+    required: true
+  repo-name:
+    description: 'Repository/package name (defaults to GitHub repository name)'
+    required: false
+  branch:
+    description: 'Git branch to build from (defaults to current branch)'
+    required: false
+  spec-file:
+    description: 'Path to spec file (defaults to {repo-name}.spec)'
+    required: false
+  additional-options:
+    description: 'Additional options to pass to mock command'
+    required: false
+    default: ''
+  extract-artifacts:
+    description: 'Extract build artifacts (logs and packages) from mock result directory'
+    required: false
+    default: 'true'
+
+outputs:
+  result-dir:
+    description: 'Directory containing build results'
+    value: ${{ steps.mock-build.outputs.result-dir }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run Mock Build in Privileged Container
+      id: mock-build
+      shell: bash
+      run: |
+        # Create temporary directory for container output and artifacts
+        RESULT_DIR=$(mktemp -d)
+
+        # Run the container with privileged mode
+        # Mount the output directory so the container can write to it
+        docker run --rm --privileged \
+          -v "${{ github.workspace }}:${{ github.workspace }}" \
+          -v "$RESULT_DIR:/tmp/result_dir" \
+          -w "${{ github.workspace }}" \
+          -e INPUT_MOCK_ROOT="${{ inputs.mock-root }}" \
+          -e INPUT_REPO_NAME="${{ inputs.repo-name }}" \
+          -e INPUT_BRANCH="${{ inputs.branch }}" \
+          -e INPUT_SPEC_FILE="${{ inputs.spec-file }}" \
+          -e INPUT_ADDITIONAL_OPTIONS="${{ inputs.additional-options }}" \
+          -e INPUT_EXTRACT_ARTIFACTS="${{ inputs.extract-artifacts }}" \
+          -e GITHUB_REPOSITORY="${{ github.repository }}" \
+          -e GITHUB_REF_NAME="${{ github.ref_name }}" \
+          -e GITHUB_SERVER_URL="${{ github.server_url }}" \
+          -e RESULT_DIR="/tmp/result_dir" \
+          ghcr.io/gordonmessmer/source-git-action:latest
+
+        # Copy container outputs to GitHub Actions output
+        if [ -f "$RESULT_DIR/github_output" ]; then
+          cat "$RESULT_DIR/github_output" >> "$GITHUB_OUTPUT"
+        fi

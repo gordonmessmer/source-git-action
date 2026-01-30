@@ -1,0 +1,14 @@
+# Build artifacts
+*.rpm
+*.log
+/tmp/
+
+# Mock results
+mock-localrepo-*/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
